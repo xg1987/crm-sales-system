@@ -1,17 +1,18 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { UserProvider, useUser } from './context/UserContext';
 import { CustomerProvider } from './context/CustomerContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import SalesTechniques from './pages/SalesTechniques';
-import Management from './pages/Management';
-import Profile from './pages/Profile';
-import Settings from './pages/profile/Settings';
-import ArchiveManagement from './pages/profile/ArchiveManagement';
-import FollowUpRecords from './pages/profile/FollowUpRecords';
-import SalesStats from './pages/profile/SalesStats';
+
+const SalesTechniques = lazy(() => import('./pages/SalesTechniques'));
+const Management = lazy(() => import('./pages/Management'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Settings = lazy(() => import('./pages/profile/Settings'));
+const ArchiveManagement = lazy(() => import('./pages/profile/ArchiveManagement'));
+const FollowUpRecords = lazy(() => import('./pages/profile/FollowUpRecords'));
+const SalesStats = lazy(() => import('./pages/profile/SalesStats'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useUser();
@@ -25,6 +26,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+function LazyPage({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background text-primary">加载中...</div>}>{children}</Suspense>;
 }
 
 export default function App() {
@@ -41,13 +46,13 @@ export default function App() {
               </ProtectedRoute>
             }>
               <Route index element={<Dashboard />} />
-              <Route path="sales-techniques" element={<SalesTechniques />} />
-              <Route path="management" element={<Management />} />
-              <Route path="profile" element={<Profile />} />
-              <Route path="profile/settings" element={<Settings />} />
-              <Route path="profile/archive" element={<ArchiveManagement />} />
-              <Route path="profile/records" element={<FollowUpRecords />} />
-              <Route path="profile/stats" element={<SalesStats />} />
+              <Route path="sales-techniques" element={<LazyPage><SalesTechniques /></LazyPage>} />
+              <Route path="management" element={<LazyPage><Management /></LazyPage>} />
+              <Route path="profile" element={<LazyPage><Profile /></LazyPage>} />
+              <Route path="profile/settings" element={<LazyPage><Settings /></LazyPage>} />
+              <Route path="profile/archive" element={<LazyPage><ArchiveManagement /></LazyPage>} />
+              <Route path="profile/records" element={<LazyPage><FollowUpRecords /></LazyPage>} />
+              <Route path="profile/stats" element={<LazyPage><SalesStats /></LazyPage>} />
             </Route>
             
             <Route path="*" element={<Navigate to="/" replace />} />
