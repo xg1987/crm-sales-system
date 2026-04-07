@@ -3,6 +3,22 @@ import { X, User, Phone, Star, FileText, Plus, Clock, Camera, Image as ImageIcon
 import { motion, AnimatePresence } from 'motion/react';
 import { Customer, FollowUpRecord, FamilyMember, StudentLevel } from '../types';
 
+const DATA_URL_PREFIX = 'data:';
+
+function stripLargeInlineImages<T extends Omit<Customer, 'id'>>(payload: T): T {
+  return {
+    ...payload,
+    avatar: payload.avatar?.startsWith(DATA_URL_PREFIX) ? '' : payload.avatar,
+    ziWeiChart: payload.ziWeiChart?.startsWith(DATA_URL_PREFIX) ? '' : payload.ziWeiChart,
+    fengShuiImages: (payload.fengShuiImages || []).filter((img) => !img.startsWith(DATA_URL_PREFIX)),
+    familyMembers: (payload.familyMembers || []).map((member) => ({
+      ...member,
+      avatar: member.avatar?.startsWith(DATA_URL_PREFIX) ? '' : member.avatar,
+      ziWeiChart: member.ziWeiChart?.startsWith(DATA_URL_PREFIX) ? '' : member.ziWeiChart,
+    })),
+  };
+}
+
 interface AddCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -228,7 +244,7 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
     }
 
     try {
-      await onAdd({
+      const sanitizedPayload = stripLargeInlineImages({
         name,
         phone,
         wechatId,
@@ -243,6 +259,19 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
         followUpRecords: finalRecords,
         familyMembers: currentFamilyMembers,
       });
+
+      await onAdd(sanitizedPayload);
+      onClose();
+      if (
+        avatar.startsWith(DATA_URL_PREFIX) ||
+        ziWeiChart.startsWith(DATA_URL_PREFIX) ||
+        fengShuiImages.some((img) => img.startsWith(DATA_URL_PREFIX)) ||
+        currentFamilyMembers.some((member) =>
+          member.avatar?.startsWith(DATA_URL_PREFIX) || member.ziWeiChart?.startsWith(DATA_URL_PREFIX)
+        )
+      ) {
+        alert('学员基础信息已保存，图片上传功能稍后补齐，当前图片不会入库。');
+      }
     } catch (error) {
       // Error is handled in context
     }
