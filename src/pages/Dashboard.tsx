@@ -8,7 +8,7 @@ import { useCustomers } from '../context/CustomerContext';
 import { Customer } from '../types';
 
 export default function Dashboard() {
-  const { customers, addCustomer, updateCustomer, archiveCustomer } = useCustomers();
+  const { customers, loading, addCustomer, updateCustomer, archiveCustomer } = useCustomers();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>(undefined);
 
@@ -223,6 +223,12 @@ export default function Dashboard() {
 
       {/* Customer List */}
       <section className="space-y-8">
+        {loading && customers.length === 0 ? (
+          <div className="bg-surface-container-low rounded-3xl p-8 border border-outline-variant/10 shadow-sm text-center text-secondary font-medium">
+            数据加载中...
+          </div>
+        ) : (
+          <>
         <div className="flex flex-col gap-6 border-b border-outline-variant/10 pb-6">
           <div className="flex items-center justify-between">
             <h3 className="font-headline text-xl font-bold">
@@ -269,6 +275,8 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+          </>
+        )}
 
         {/* Customer Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
