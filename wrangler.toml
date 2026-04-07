@@ -5,4 +5,8 @@ compatibility_date = "2026-04-06"
 [[d1_databases]]
 binding = "DB"
 database_name = "yichen-crm"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "6943aae2-e0d7-40af-99dd-b8eb5f29b93f"
+
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "yichen-crm-assets"

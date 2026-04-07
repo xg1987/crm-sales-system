@@ -9,8 +9,13 @@ type D1Database = {
   prepare: (query: string) => D1PreparedStatement;
 };
 
+type R2Bucket = {
+  put: (key: string, value: ArrayBuffer | ArrayBufferView | string | ReadableStream, options?: { httpMetadata?: { contentType?: string } }) => Promise<unknown>;
+};
+
 export interface Env {
   DB: D1Database;
+  ASSETS: R2Bucket;
 }
 
 type UserRow = {
@@ -25,6 +30,7 @@ type UserRow = {
 };
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200&h=200';
+const R2_PUBLIC_BASE = 'https://pub-c9d0a98830b44a8f8a0a4be4533a9348.r2.dev';
 
 function json(data: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(data), {
@@ -47,6 +53,36 @@ async function sha256(input: string) {
 
 function createId() {
   return crypto.randomUUID();
+}
+
+async function uploadBase64Asset(dataUrl: string, folder: string, env: Env) {
+  const match = dataUrl.match(/^data:(.*?);base64,(.*)$/);
+  if (!match) return '';
+  const contentType = match[1] || 'application/octet-stream';
+  const base64 = match[2];
+  const binary = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const ext = contentType.split('/')[1] || 'bin';
+  const key = `${folder}/${crypto.randomUUID()}.${ext}`;
+  await env.ASSETS.put(key, binary, { httpMetadata: { contentType } });
+  return `${R2_PUBLIC_BASE}/${key}`;
+}
+
+async function normalizeAssetField(value: string | undefined, folder: string, env: Env) {
+  if (!value) return '';
+  if (value.startsWith('data:')) {
+    return uploadBase64Asset(value, folder, env);
+  }
+  return value;
+}
+
+async function normalizeAssetList(values: string[] | undefined, folder: string, env: Env) {
+  const items = values || [];
+  const result: string[] = [];
+  for (const value of items) {
+    if (!value) continue;
+    result.push(await normalizeAssetField(value, folder, env));
+  }
+  return result;
 }
 
 async function parseBody(request: Request) {
@@ -248,6 +284,15 @@ export default {
     if (url.pathname === '/api/customers' && request.method === 'POST') {
       const body = await parseBody(request);
       const id = createId();
+      const avatar = await normalizeAssetField(body.avatar, `customers/${user.id}/avatar`, env);
+      const ziWeiChart = await normalizeAssetField(body.ziWeiChart, `customers/${user.id}/ziwei`, env);
+      const fengShuiImages = await normalizeAssetList(body.fengShuiImages, `customers/${user.id}/fengshui`, env);
+      const familyMembers = await Promise.all((body.familyMembers || []).map(async (member: any) => ({
+        ...member,
+        avatar: await normalizeAssetField(member.avatar, `customers/${user.id}/family/avatar`, env),
+        ziWeiChart: await normalizeAssetField(member.ziWeiChart, `customers/${user.id}/family/ziwei`, env),
+      })));
+
       await env.DB.prepare(
         `INSERT INTO customers (
           id, user_id, name, phone, wechat_id, city, birth_date, birth_time, birth_type,
@@ -264,14 +309,14 @@ export default {
         body.birthInfo?.date || null,
         body.birthInfo?.time || null,
         body.birthInfo?.type || null,
-        body.avatar || DEFAULT_AVATAR,
-        body.ziWeiChart || '',
-        JSON.stringify(body.fengShuiImages || []),
+        avatar || DEFAULT_AVATAR,
+        ziWeiChart || '',
+        JSON.stringify(fengShuiImages || []),
         body.status || 'to-follow',
         body.level || '新流量',
         body.nextFollowUpDate || null,
         JSON.stringify(body.followUpRecords || []),
-        JSON.stringify(body.familyMembers || []),
+        JSON.stringify(familyMembers || []),
         body.archived ? 1 : 0
       ).run();
 
@@ -284,14 +329,14 @@ export default {
           wechatId: body.wechatId || '',
           city: body.city || '',
           birthInfo: body.birthInfo,
-          avatar: body.avatar || DEFAULT_AVATAR,
-          ziWeiChart: body.ziWeiChart || '',
-          fengShuiImages: body.fengShuiImages || [],
+          avatar: avatar || DEFAULT_AVATAR,
+          ziWeiChart: ziWeiChart || '',
+          fengShuiImages,
           status: body.status || 'to-follow',
           level: body.level || '新流量',
           nextFollowUpDate: body.nextFollowUpDate,
           followUpRecords: body.followUpRecords || [],
-          familyMembers: body.familyMembers || [],
+          familyMembers,
           archived: !!body.archived,
         },
       });
@@ -313,14 +358,18 @@ export default {
         wechatId: body.wechatId ?? existing.wechat_id,
         city: body.city ?? existing.city,
         birthInfo: body.birthInfo ?? (existing.birth_date ? { date: existing.birth_date, time: existing.birth_time || '', type: existing.birth_type || 'solar' } : undefined),
-        avatar: body.avatar ?? existing.avatar,
-        ziWeiChart: body.ziWeiChart ?? existing.ziwei_chart,
-        fengShuiImages: body.fengShuiImages ?? (existing.fengshui_images_json ? JSON.parse(existing.fengshui_images_json) : []),
+        avatar: await normalizeAssetField(body.avatar ?? existing.avatar, `customers/${user.id}/avatar`, env),
+        ziWeiChart: await normalizeAssetField(body.ziWeiChart ?? existing.ziwei_chart, `customers/${user.id}/ziwei`, env),
+        fengShuiImages: body.fengShuiImages ? await normalizeAssetList(body.fengShuiImages, `customers/${user.id}/fengshui`, env) : (existing.fengshui_images_json ? JSON.parse(existing.fengshui_images_json) : []),
         status: body.status ?? existing.status,
         level: body.level ?? existing.level,
         nextFollowUpDate: body.nextFollowUpDate ?? existing.next_follow_up_date,
         followUpRecords: body.followUpRecords ?? (existing.follow_up_records_json ? JSON.parse(existing.follow_up_records_json) : []),
-        familyMembers: body.familyMembers ?? (existing.family_members_json ? JSON.parse(existing.family_members_json) : []),
+        familyMembers: body.familyMembers ? await Promise.all(body.familyMembers.map(async (member: any) => ({
+          ...member,
+          avatar: await normalizeAssetField(member.avatar, `customers/${user.id}/family/avatar`, env),
+          ziWeiChart: await normalizeAssetField(member.ziWeiChart, `customers/${user.id}/family/ziwei`, env),
+        }))) : (existing.family_members_json ? JSON.parse(existing.family_members_json) : []),
         archived: body.archived ?? !!existing.archived,
       };
 
