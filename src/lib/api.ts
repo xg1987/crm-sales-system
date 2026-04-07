@@ -30,6 +30,7 @@ export interface ApiCustomerPayload {
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 const TOKEN_KEY = 'yichen_auth_token';
+const REQUEST_TIMEOUT_MS = 30000;
 
 export function getStoredToken() {
   try {
@@ -56,44 +57,62 @@ export function clearStoredToken() {
   }
 }
 
+async function parseJsonSafe<T>(res: Response): Promise<T | null> {
+  try {
+    return await res.json() as T;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
   const headers = new Headers(options.headers || {});
 
-  if (!(options.body instanceof FormData)) {
+  if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+  const supportsAbortTimeout = typeof AbortController !== 'undefined';
+  const controller = supportsAbortTimeout ? new AbortController() : null;
+  const timeoutId = controller
+    ? setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    : null;
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       ...options,
       headers,
-      signal: controller.signal,
+      ...(controller ? { signal: controller.signal } : {}),
     });
 
-    clearTimeout(timeoutId);
+    if (timeoutId) clearTimeout(timeoutId);
 
     if (!res.ok) {
-      let message = '请求失败';
-      try {
-        const data = await res.json() as { error?: string };
-        message = data.error || message;
-      } catch {}
-      throw new Error(message);
+      const data = await parseJsonSafe<{ error?: string }>(res);
+      throw new Error(data?.error || `请求失败（${res.status}）`);
     }
 
-    return res.json() as Promise<T>;
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      throw new Error('请求超时，请检查网络连接或稍后重试');
+    const data = await parseJsonSafe<T>(res);
+    if (data === null) {
+      throw new Error('服务器返回了无法识别的数据');
     }
+
+    return data;
+  } catch (error: any) {
+    if (timeoutId) clearTimeout(timeoutId);
+
+    if (error?.name === 'AbortError') {
+      throw new Error('请求超时，请稍后重试');
+    }
+
+    if (error instanceof TypeError) {
+      throw new Error('网络连接失败，请检查当前网络');
+    }
+
     throw error;
   }
 }
