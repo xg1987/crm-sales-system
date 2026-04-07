@@ -28,7 +28,7 @@ export interface ApiCustomerPayload {
   archived?: boolean;
 }
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'https://api.dayichen.com/api').replace(/\/$/, '');
 const TOKEN_KEY = 'yichen_auth_token';
 const REQUEST_TIMEOUT_MS = 30000;
 
