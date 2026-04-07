@@ -77,6 +77,12 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const cachedCustomers = readCachedCustomers();
+    if (cachedCustomers.length > 0) {
+      setCustomers(cachedCustomers);
+      setLoading(false);
+    }
+
     let cancelled = false;
 
     const fetchCustomers = async () => {
