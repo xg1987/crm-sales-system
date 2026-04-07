@@ -31,6 +31,7 @@ export interface ApiCustomerPayload {
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'https://api.dayichen.com/api').replace(/\/$/, '');
 const TOKEN_KEY = 'yichen_auth_token';
 const REQUEST_TIMEOUT_MS = 30000;
+const CUSTOMER_CACHE_TTL_MS = 30_000;
 
 export function getStoredToken() {
   try {
@@ -63,6 +64,31 @@ async function parseJsonSafe<T>(res: Response): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+function getCacheKey(path: string) {
+  return `api_cache:${path}`;
+}
+
+function readCache<T>(path: string): T | null {
+  try {
+    const raw = localStorage.getItem(getCacheKey(path));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { expiresAt: number; data: T };
+    if (!parsed?.expiresAt || Date.now() > parsed.expiresAt) {
+      localStorage.removeItem(getCacheKey(path));
+      return null;
+    }
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache<T>(path: string, data: T, ttlMs = CUSTOMER_CACHE_TTL_MS) {
+  try {
+    localStorage.setItem(getCacheKey(path), JSON.stringify({ expiresAt: Date.now() + ttlMs, data }));
+  } catch {}
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -150,7 +176,12 @@ export async function updateMe(payload: Partial<UserProfile>) {
 }
 
 export async function getCustomers() {
-  return request<{ customers: Customer[] }>('/customers');
+  const cached = readCache<{ customers: Customer[] }>('/customers');
+  if (cached) return cached;
+
+  const res = await request<{ customers: Customer[] }>('/customers');
+  writeCache('/customers', res);
+  return res;
 }
 
 export async function createCustomer(payload: ApiCustomerPayload) {

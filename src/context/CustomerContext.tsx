@@ -67,6 +67,11 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useUser();
 
   useEffect(() => {
+    if (!customers.length) return;
+    writeCachedCustomers(customers);
+  }, [customers]);
+
+  useEffect(() => {
     const fetchCustomers = async () => {
       if (!isAuthenticated) {
         setCustomers([]);
@@ -80,7 +85,6 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
         const res = await api.getCustomers();
         const nextCustomers = res.customers || [];
         setCustomers(nextCustomers);
-        writeCachedCustomers(nextCustomers);
       } catch (error) {
         console.error('Error fetching customers:', error);
         setCustomers(prev => prev);
