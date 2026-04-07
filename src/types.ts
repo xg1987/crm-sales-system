@@ -33,7 +33,7 @@ export interface Customer {
   level: StudentLevel;
   nextFollowUpDate?: string; // ISO date string
   followUpRecords: FollowUpRecord[];
-  familyMembers?: FamilyMember[];
+  familyMembers?: FamilyMember[] | number;
   archived?: boolean;
   syncStatus?: 'idle' | 'uploading' | 'failed';
 }

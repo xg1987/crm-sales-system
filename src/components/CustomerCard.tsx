@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { Star, Archive, Phone, Edit2, Image as ImageIcon, X, Users, TrendingUp } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import React from 'react';
+import { Archive, Phone, Edit2, Users, TrendingUp } from 'lucide-react';
 import { Customer } from '../types';
 
 interface CustomerCardProps {
@@ -15,7 +14,6 @@ export default function CustomerCard({
   onEdit, 
   onArchive
 }: CustomerCardProps) {
-  const [showLightbox, setShowLightbox] = useState(false);
 
   const getStatusColor = (status: Customer['status']) => {
     switch (status) {
@@ -67,20 +65,10 @@ export default function CustomerCard({
                     {customer.birthInfo.type === 'solar' ? '阳历' : '农历'}: {customer.birthInfo.date} {customer.birthInfo.time}
                   </p>
                 )}
-                {customer.fengShuiImages && customer.fengShuiImages.length > 0 && (
-                  <div className="flex gap-1 mt-1">
-                    {customer.fengShuiImages.map((img, idx) => (
-                      <div key={idx} className="w-6 h-6 rounded bg-surface-container-low border border-outline-variant/10 overflow-hidden">
-                        <img src={img} alt="Feng Shui" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      </div>
-                    ))}
-                    <span className="text-[8px] text-secondary/40 self-end font-bold ml-1">风水图</span>
-                  </div>
-                )}
-                {customer.familyMembers && customer.familyMembers.length > 0 && (
+                {customer.familyMembers && Number(customer.familyMembers) > 0 && (
                   <div className="flex items-center gap-1 px-1.5 py-0.5 bg-secondary/5 rounded text-[10px] text-secondary font-bold">
                     <Users className="w-3 h-3" />
-                    {customer.familyMembers.length}
+                    {Number(customer.familyMembers)}
                   </div>
                 )}
                 {customer.syncStatus === 'uploading' && (
@@ -135,22 +123,6 @@ export default function CustomerCard({
             <Archive className="w-4 h-4" /> 归档学员
           </button>
           <div className="flex gap-2">
-            {customer.ziWeiChart && (
-              <div className="relative group/chart">
-                <button 
-                  onClick={() => setShowLightbox(true)}
-                  className="p-2 bg-secondary/5 hover:bg-secondary/10 rounded-full text-secondary transition-all border border-secondary/10"
-                >
-                  <ImageIcon className="w-5 h-5" />
-                </button>
-                {/* Tooltip/Mini Preview */}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover/chart:opacity-100 transition-opacity pointer-events-none z-50">
-                  <div className="bg-surface-container-lowest p-1 rounded-lg shadow-xl border border-outline-variant/20 w-32 h-32 overflow-hidden">
-                    <img src={customer.ziWeiChart} alt="Zi Wei Chart" className="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
-                  </div>
-                </div>
-              </div>
-            )}
             <button className="p-2 hover:bg-primary/10 rounded-full text-primary transition-colors">
               <Phone className="w-5 h-5" />
             </button>
@@ -163,40 +135,6 @@ export default function CustomerCard({
           </div>
         </div>
       </div>
-
-      {/* Lightbox */}
-      <AnimatePresence>
-        {showLightbox && customer.ziWeiChart && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowLightbox(false)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md cursor-zoom-out"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="relative max-w-full max-h-full overflow-hidden rounded-lg shadow-2xl"
-            >
-              <img 
-                src={customer.ziWeiChart} 
-                alt="Full Chart" 
-                className="max-w-full max-h-[90vh] object-contain"
-                referrerPolicy="no-referrer"
-              />
-              <button 
-                onClick={() => setShowLightbox(false)}
-                className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </>
   );
 }

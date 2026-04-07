@@ -94,6 +94,17 @@ function safeParseJsonArray(value: string | null | undefined) {
   }
 }
 
+function summarizeFamilyMembers(value: string | null | undefined) {
+  const members = safeParseJsonArray(value);
+  return Array.isArray(members) ? members.length : 0;
+}
+
+function summarizeLatestFollowUp(value: string | null | undefined) {
+  const records = safeParseJsonArray(value);
+  if (!Array.isArray(records) || records.length === 0) return [];
+  return [records[0]];
+}
+
 async function parseBody(request: Request) {
   try {
     return await request.json();
@@ -280,13 +291,11 @@ export default {
         city: row.city || '',
         birthInfo: row.birth_date ? { date: row.birth_date, time: row.birth_time || '', type: row.birth_type || 'solar' } : undefined,
         avatar: row.avatar || DEFAULT_AVATAR,
-        ziWeiChart: row.ziwei_chart || '',
-        fengShuiImages: safeParseJsonArray(row.fengshui_images_json),
         status: row.status,
         level: row.level,
         nextFollowUpDate: row.next_follow_up_date || undefined,
-        followUpRecords: safeParseJsonArray(row.follow_up_records_json),
-        familyMembers: safeParseJsonArray(row.family_members_json),
+        followUpRecords: summarizeLatestFollowUp(row.follow_up_records_json),
+        familyMembers: summarizeFamilyMembers(row.family_members_json),
         archived: !!row.archived,
       }));
 
