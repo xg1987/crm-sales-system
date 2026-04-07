@@ -76,16 +76,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const supportsAbortTimeout = typeof AbortController !== 'undefined';
-  const controller = supportsAbortTimeout ? new AbortController() : null;
-  const timeoutId = controller
-    ? setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-    : null;
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS) : null;
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       ...options,
       headers,
+      cache: 'no-store',
       ...(controller ? { signal: controller.signal } : {}),
     });
 
@@ -93,6 +91,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
     if (!res.ok) {
       const data = await parseJsonSafe<{ error?: string }>(res);
+      if (res.status === 401) {
+        throw new Error(data?.error || '登录已失效，请重新登录');
+      }
       throw new Error(data?.error || `请求失败（${res.status}）`);
     }
 
@@ -110,7 +111,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     }
 
     if (error instanceof TypeError) {
-      throw new Error('网络连接失败，请检查当前网络');
+      throw new Error('服务暂时不可用，请刷新页面后重试');
     }
 
     throw error;
