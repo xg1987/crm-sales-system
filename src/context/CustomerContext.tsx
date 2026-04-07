@@ -3,12 +3,18 @@ import { Customer } from '../types';
 import * as api from '../lib/api';
 import { useUser } from './UserContext';
 
-const CUSTOMER_CACHE_KEY = 'yichen_customers_cache';
 const DATA_URL_PREFIX = 'data:';
 
-function readCachedCustomers(): Customer[] {
+function getCustomerSnapshotKey(userId?: string, phone?: string) {
+  if (!userId && !phone) return null;
+  return `yichen_customers_snapshot:${userId || 'unknown'}:${phone || 'unknown'}`;
+}
+
+function readCustomerSnapshot(userId?: string, phone?: string): Customer[] {
+  const key = getCustomerSnapshotKey(userId, phone);
+  if (!key) return [];
   try {
-    const raw = localStorage.getItem(CUSTOMER_CACHE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -17,9 +23,11 @@ function readCachedCustomers(): Customer[] {
   }
 }
 
-function writeCachedCustomers(customers: Customer[]) {
+function writeCustomerSnapshot(customers: Customer[], userId?: string, phone?: string) {
+  const key = getCustomerSnapshotKey(userId, phone);
+  if (!key) return;
   try {
-    localStorage.setItem(CUSTOMER_CACHE_KEY, JSON.stringify(customers));
+    localStorage.setItem(key, JSON.stringify(customers));
   } catch {}
 }
 
@@ -61,35 +69,33 @@ function stripInlineImages(customer: Omit<Customer, 'id'>): Omit<Customer, 'id'>
 }
 
 export function CustomerProvider({ children }: { children: ReactNode }) {
-  const [customers, setCustomers] = useState<Customer[]>(readCachedCustomers);
-  const [loading, setLoading] = useState(false);
-  const { isAuthenticated } = useUser();
-
-  useEffect(() => {
-    writeCachedCustomers(customers);
-  }, [customers]);
+  const { isAuthenticated, user } = useUser();
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) {
       setCustomers([]);
-      writeCachedCustomers([]);
       setLoading(false);
       return;
     }
 
-    const cachedCustomers = readCachedCustomers();
-    if (cachedCustomers.length > 0) {
-      setCustomers(cachedCustomers);
+    const snapshot = readCustomerSnapshot(user.id, user.phone);
+    if (snapshot.length > 0) {
+      setCustomers(snapshot);
       setLoading(false);
+    } else {
+      setLoading(true);
     }
 
     let cancelled = false;
-
     const fetchCustomers = async () => {
       try {
-        const res = await api.getCustomers();
+        const res = await api.getCustomers(user.id, user.phone);
         if (cancelled) return;
-        setCustomers(res.customers || []);
+        const nextCustomers = res.customers || [];
+        setCustomers(nextCustomers);
+        writeCustomerSnapshot(nextCustomers, user.id, user.phone);
       } catch (error) {
         console.error('Error fetching customers:', error);
       } finally {
@@ -101,7 +107,12 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user.id, user.phone]);
+
+  const persist = (next: Customer[]) => {
+    setCustomers(next);
+    writeCustomerSnapshot(next, user.id, user.phone);
+  };
 
   const addCustomer = async (data: Omit<Customer, 'id'>) => {
     try {
@@ -109,16 +120,16 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
       const basePayload = pendingUpload ? stripInlineImages(data) : data;
       const res = await api.createCustomer(basePayload);
       const immediateCustomer = { ...res.customer, syncStatus: pendingUpload ? 'uploading' : 'idle' };
-
-      setCustomers(prev => [immediateCustomer, ...prev]);
+      const next = [immediateCustomer, ...customers];
+      persist(next);
 
       if (pendingUpload) {
         api.updateCustomer(res.customer.id, data)
           .then((updateRes) => {
-            setCustomers(prev => prev.map(c => (c.id === res.customer.id ? { ...updateRes.customer, syncStatus: 'idle' } : c)));
+            persist(next.map(c => (c.id === res.customer.id ? { ...updateRes.customer, syncStatus: 'idle' } : c)));
           })
           .catch(() => {
-            setCustomers(prev => prev.map(c => (c.id === res.customer.id ? { ...c, syncStatus: 'failed' } : c)));
+            persist(next.map(c => (c.id === res.customer.id ? { ...c, syncStatus: 'failed' } : c)));
           });
       }
     } catch (error: any) {
@@ -128,10 +139,11 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   };
 
   const updateCustomer = async (id: string, data: Partial<Customer>) => {
+    const optimistic = customers.map(c => (c.id === id ? { ...c, ...data } : c));
+    persist(optimistic);
     try {
-      setCustomers(prev => prev.map(c => (c.id === id ? { ...c, ...data } : c)));
       const res = await api.updateCustomer(id, data);
-      setCustomers(prev => prev.map(c => (c.id === id ? res.customer : c)));
+      persist(optimistic.map(c => (c.id === id ? res.customer : c)));
     } catch (error: any) {
       alert(error.message || '更新客户失败');
       throw error;
@@ -139,30 +151,21 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   };
 
   const archiveCustomer = async (id: string) => {
-    try {
-      await updateCustomer(id, { archived: true });
-    } catch (error: any) {
-      alert(error.message || '归档客户失败');
-      throw error;
-    }
+    await updateCustomer(id, { archived: true });
   };
 
   const restoreCustomer = async (id: string) => {
-    try {
-      await updateCustomer(id, { archived: false });
-    } catch (error: any) {
-      alert(error.message || '恢复客户失败');
-      throw error;
-    }
+    await updateCustomer(id, { archived: false });
   };
 
   const deleteCustomer = async (id: string) => {
     const previous = customers;
+    const next = previous.filter(c => c.id !== id);
+    persist(next);
     try {
-      setCustomers(prev => prev.filter(c => c.id !== id));
       await api.removeCustomer(id);
     } catch (error: any) {
-      setCustomers(previous);
+      persist(previous);
       alert(error.message || '删除客户失败');
       throw error;
     }

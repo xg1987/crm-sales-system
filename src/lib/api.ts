@@ -66,17 +66,17 @@ async function parseJsonSafe<T>(res: Response): Promise<T | null> {
   }
 }
 
-function getCacheKey(path: string) {
-  return `api_cache:${path}`;
+function getCacheKey(path: string, userId?: string, phone?: string) {
+  return `api_cache:${userId || 'anon'}:${phone || 'anon'}:${path}`;
 }
 
-function readCache<T>(path: string): T | null {
+function readCache<T>(path: string, userId?: string, phone?: string): T | null {
   try {
-    const raw = localStorage.getItem(getCacheKey(path));
+    const raw = localStorage.getItem(getCacheKey(path, userId, phone));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { expiresAt: number; data: T };
     if (!parsed?.expiresAt || Date.now() > parsed.expiresAt) {
-      localStorage.removeItem(getCacheKey(path));
+      localStorage.removeItem(getCacheKey(path, userId, phone));
       return null;
     }
     return parsed.data;
@@ -85,9 +85,9 @@ function readCache<T>(path: string): T | null {
   }
 }
 
-function writeCache<T>(path: string, data: T, ttlMs = CUSTOMER_CACHE_TTL_MS) {
+function writeCache<T>(path: string, data: T, ttlMs = CUSTOMER_CACHE_TTL_MS, userId?: string, phone?: string) {
   try {
-    localStorage.setItem(getCacheKey(path), JSON.stringify({ expiresAt: Date.now() + ttlMs, data }));
+    localStorage.setItem(getCacheKey(path, userId, phone), JSON.stringify({ expiresAt: Date.now() + ttlMs, data }));
   } catch {}
 }
 
@@ -175,12 +175,12 @@ export async function updateMe(payload: Partial<UserProfile>) {
   });
 }
 
-export async function getCustomers() {
-  const cached = readCache<{ customers: Customer[] }>('/customers');
+export async function getCustomers(userId?: string, phone?: string) {
+  const cached = readCache<{ customers: Customer[] }>('/customers', userId, phone);
   if (cached) return cached;
 
   const res = await request<{ customers: Customer[] }>('/customers');
-  writeCache('/customers', res);
+  writeCache('/customers', res, CUSTOMER_CACHE_TTL_MS, userId, phone);
   return res;
 }
 
