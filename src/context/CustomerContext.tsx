@@ -44,26 +44,51 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated]);
 
   const addCustomer = async (data: Omit<Customer, 'id'>) => {
-    const res = await api.createCustomer(data);
-    setCustomers(prev => [res.customer, ...prev]);
+    try {
+      const res = await api.createCustomer(data);
+      setCustomers(prev => [res.customer, ...prev]);
+    } catch (error: any) {
+      alert(error.message || '添加客户失败');
+      throw error;
+    }
   };
 
   const updateCustomer = async (id: string, data: Partial<Customer>) => {
-    const res = await api.updateCustomer(id, data);
-    setCustomers(prev => prev.map(c => (c.id === id ? res.customer : c)));
+    try {
+      const res = await api.updateCustomer(id, data);
+      setCustomers(prev => prev.map(c => (c.id === id ? res.customer : c)));
+    } catch (error: any) {
+      alert(error.message || '更新客户失败');
+      throw error;
+    }
   };
 
   const archiveCustomer = async (id: string) => {
-    await updateCustomer(id, { archived: true });
+    try {
+      await updateCustomer(id, { archived: true });
+    } catch (error: any) {
+      alert(error.message || '归档客户失败');
+      throw error;
+    }
   };
 
   const restoreCustomer = async (id: string) => {
-    await updateCustomer(id, { archived: false });
+    try {
+      await updateCustomer(id, { archived: false });
+    } catch (error: any) {
+      alert(error.message || '恢复客户失败');
+      throw error;
+    }
   };
 
   const deleteCustomer = async (id: string) => {
-    await api.removeCustomer(id);
-    setCustomers(prev => prev.filter(c => c.id !== id));
+    try {
+      await api.removeCustomer(id);
+      setCustomers(prev => prev.filter(c => c.id !== id));
+    } catch (error: any) {
+      alert(error.message || '删除客户失败');
+      throw error;
+    }
   };
 
   return (

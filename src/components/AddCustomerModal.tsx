@@ -6,7 +6,7 @@ import { Customer, FollowUpRecord, FamilyMember, StudentLevel } from '../types';
 interface AddCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (customer: Omit<Customer, 'id'>) => void;
+  onAdd: (customer: Omit<Customer, 'id'>) => Promise<void>;
   initialData?: Customer;
 }
 
@@ -194,7 +194,7 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
     setFamilyMembers(familyMembers.filter(m => m.id !== id));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Auto-save if editing family member
@@ -227,22 +227,25 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
       finalRecords = [newRecord, ...finalRecords];
     }
 
-    onAdd({
-      name,
-      phone,
-      wechatId,
-      city,
-      birthInfo: birthDate ? { date: birthDate, time: birthTime, type: birthType } : undefined,
-      avatar: avatar || `https://images.unsplash.com/photo-${Math.floor(Math.random() * 1000000)}?auto=format&fit=crop&q=80&w=200&h=200`,
-      ziWeiChart,
-      fengShuiImages,
-      status,
-      nextFollowUpDate: nextFollowUpDate || undefined,
-      level,
-      followUpRecords: finalRecords,
-      familyMembers: currentFamilyMembers,
-    });
-    onClose();
+    try {
+      await onAdd({
+        name,
+        phone,
+        wechatId,
+        city,
+        birthInfo: birthDate ? { date: birthDate, time: birthTime, type: birthType } : undefined,
+        avatar: avatar || `https://images.unsplash.com/photo-${Math.floor(Math.random() * 1000000)}?auto=format&fit=crop&q=80&w=200&h=200`,
+        ziWeiChart,
+        fengShuiImages,
+        status,
+        nextFollowUpDate: nextFollowUpDate || undefined,
+        level,
+        followUpRecords: finalRecords,
+        familyMembers: currentFamilyMembers,
+      });
+    } catch (error) {
+      // Error is handled in context
+    }
   };
 
   return (

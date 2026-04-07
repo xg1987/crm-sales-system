@@ -53,13 +53,18 @@ export default function Dashboard() {
     });
   }, [customers, searchQuery, statusFilter, levelFilter]);
 
-  const handleAddOrUpdateCustomer = (data: Omit<Customer, 'id'>) => {
-    if (editingCustomer) {
-      updateCustomer(editingCustomer.id, data);
-    } else {
-      addCustomer(data);
+  const handleAddOrUpdateCustomer = async (data: Omit<Customer, 'id'>) => {
+    try {
+      if (editingCustomer) {
+        await updateCustomer(editingCustomer.id, data);
+      } else {
+        await addCustomer(data);
+      }
+      setEditingCustomer(undefined);
+      setIsModalOpen(false);
+    } catch (error) {
+      // Error is already alerted in context
     }
-    setEditingCustomer(undefined);
   };
 
   const handleArchive = (id: string) => {

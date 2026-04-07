@@ -48,13 +48,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const bootstrap = async () => {
-      const token = api.getStoredToken();
-      if (!token) {
-        setAuthState({ isAuthenticated: false, user: null, loading: false });
-        return;
-      }
-
       try {
+        const token = api.getStoredToken();
+        if (!token) {
+          setAuthState({ isAuthenticated: false, user: null, loading: false });
+          return;
+        }
+
         const res = await api.getMe();
         setAuthState({
           isAuthenticated: true,
@@ -62,6 +62,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           loading: false,
         });
       } catch (error) {
+        console.error('Bootstrap error:', error);
         api.clearStoredToken();
         setAuthState({ isAuthenticated: false, user: null, loading: false });
       }

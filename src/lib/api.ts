@@ -32,15 +32,28 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, ''
 const TOKEN_KEY = 'yichen_auth_token';
 
 export function getStoredToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch (e) {
+    console.warn('localStorage is not available:', e);
+    return null;
+  }
 }
 
 export function setStoredToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token);
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch (e) {
+    console.warn('localStorage is not available:', e);
+  }
 }
 
 export function clearStoredToken() {
-  localStorage.removeItem(TOKEN_KEY);
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch (e) {
+    console.warn('localStorage is not available:', e);
+  }
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -54,21 +67,35 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-  if (!res.ok) {
-    let message = '请求失败';
-    try {
-      const data = await res.json() as { error?: string };
-      message = data.error || message;
-    } catch {}
-    throw new Error(message);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      let message = '请求失败';
+      try {
+        const data = await res.json() as { error?: string };
+        message = data.error || message;
+      } catch {}
+      throw new Error(message);
+    }
+
+    return res.json() as Promise<T>;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('请求超时，请检查网络连接或稍后重试');
+    }
+    throw error;
   }
-
-  return res.json() as Promise<T>;
 }
 
 export async function register(payload: { phone: string; password: string; name: string }) {

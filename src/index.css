@@ -1,1 +1,64 @@
 @import "tailwindcss";
+
+@theme {
+  --color-primary: #8c222c;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #f9e8e8;
+  --color-primary-fixed: #8c222c;
+  --color-on-primary-fixed: #ffffff;
+  
+  --color-secondary: #6b5c5d;
+  
+  --color-background: #f8f6f0;
+  --color-on-background: #2b2626;
+  
+  --color-surface: #ffffff;
+  --color-on-surface: #2b2626;
+  --color-on-surface-variant: #4a4040;
+  
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #fdfcfb;
+  --color-surface-container-high: #f0ece1;
+  --color-surface-container-highest: #e6e1d5;
+  
+  --color-outline: #d3caca;
+  --color-outline-variant: #e8e3e3;
+  
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+
+  --font-headline: "Noto Serif SC", "Songti SC", "STSong", serif;
+  --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-label: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+@layer utilities {
+  .ink-wash-bg {
+    background: linear-gradient(135deg, var(--color-background) 0%, var(--color-surface-container-high) 100%);
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: var(--color-outline-variant);
+    border-radius: 20px;
+  }
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-on-background);
+  font-family: var(--font-body);
+}
