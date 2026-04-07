@@ -47,9 +47,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    const token = api.getStoredToken();
+    if (token) {
+      setAuthState({ isAuthenticated: true, user: DEFAULT_USER, loading: false });
+    }
+
     const bootstrap = async () => {
       try {
-        const token = api.getStoredToken();
         if (!token) {
           setAuthState({ isAuthenticated: false, user: null, loading: false });
           return;
