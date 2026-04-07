@@ -48,6 +48,37 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
   const fAvatarInputRef = useRef<HTMLInputElement>(null);
   const fChartInputRef = useRef<HTMLInputElement>(null);
 
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('图片读取失败'));
+      reader.readAsDataURL(file);
+    });
+
+  const resizeImage = async (file: File) => {
+    const dataUrl = await readFileAsDataUrl(file);
+    return new Promise<string>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = 1280;
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.78));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  };
+
   // Update state when initialData changes
   useEffect(() => {
     if (initialData) {
@@ -89,31 +120,22 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
     setSubmitting(false);
   }, [initialData, isOpen]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'chart' | 'fAvatar' | 'fChart' | 'fengShui') => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'chart' | 'fAvatar' | 'fChart' | 'fengShui') => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     if (type === 'fengShui') {
-      Array.from(files).forEach((file: File) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setFengShuiImages(prev => [...prev, reader.result as string].slice(0, 4));
-        };
-        reader.readAsDataURL(file);
-      });
+      const resized = await Promise.all(Array.from(files).map((file: File) => resizeImage(file)));
+      setFengShuiImages(prev => [...prev, ...resized].slice(0, 4));
       return;
     }
 
     const file = files[0];
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      if (type === 'avatar') setAvatar(result);
-      else if (type === 'chart') setZiWeiChart(result);
-      else if (type === 'fAvatar') setFAvatar(result);
-      else if (type === 'fChart') setFChart(result);
-    };
-    reader.readAsDataURL(file);
+    const result = await resizeImage(file);
+    if (type === 'avatar') setAvatar(result);
+    else if (type === 'chart') setZiWeiChart(result);
+    else if (type === 'fAvatar') setFAvatar(result);
+    else if (type === 'fChart') setFChart(result);
   };
 
   const handleAddRecord = () => {
