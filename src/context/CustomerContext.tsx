@@ -3,6 +3,25 @@ import { Customer } from '../types';
 import * as api from '../lib/api';
 import { useUser } from './UserContext';
 
+const CUSTOMER_CACHE_KEY = 'yichen_customers_cache';
+
+function readCachedCustomers(): Customer[] {
+  try {
+    const raw = localStorage.getItem(CUSTOMER_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedCustomers(customers: Customer[]) {
+  try {
+    localStorage.setItem(CUSTOMER_CACHE_KEY, JSON.stringify(customers));
+  } catch {}
+}
+
 interface CustomerContextType {
   customers: Customer[];
   loading: boolean;
@@ -16,7 +35,7 @@ interface CustomerContextType {
 const CustomerContext = createContext<CustomerContextType | undefined>(undefined);
 
 export function CustomerProvider({ children }: { children: ReactNode }) {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>(readCachedCustomers);
   const [loading, setLoading] = useState(true);
   const { isAuthenticated } = useUser();
 
@@ -24,17 +43,20 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
     const fetchCustomers = async () => {
       if (!isAuthenticated) {
         setCustomers([]);
+        writeCachedCustomers([]);
         setLoading(false);
         return;
       }
 
       try {
-        setLoading(true);
+        setLoading(customers.length === 0);
         const res = await api.getCustomers();
-        setCustomers(res.customers || []);
+        const nextCustomers = res.customers || [];
+        setCustomers(nextCustomers);
+        writeCachedCustomers(nextCustomers);
       } catch (error) {
         console.error('Error fetching customers:', error);
-        setCustomers([]);
+        setCustomers(prev => prev);
       } finally {
         setLoading(false);
       }
@@ -46,7 +68,11 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   const addCustomer = async (data: Omit<Customer, 'id'>) => {
     try {
       const res = await api.createCustomer(data);
-      setCustomers(prev => [res.customer, ...prev]);
+      setCustomers(prev => {
+        const next = [res.customer, ...prev];
+        writeCachedCustomers(next);
+        return next;
+      });
     } catch (error: any) {
       alert(error.message || '添加客户失败');
       throw error;
@@ -56,7 +82,11 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   const updateCustomer = async (id: string, data: Partial<Customer>) => {
     try {
       const res = await api.updateCustomer(id, data);
-      setCustomers(prev => prev.map(c => (c.id === id ? res.customer : c)));
+      setCustomers(prev => {
+        const next = prev.map(c => (c.id === id ? res.customer : c));
+        writeCachedCustomers(next);
+        return next;
+      });
     } catch (error: any) {
       alert(error.message || '更新客户失败');
       throw error;
@@ -84,7 +114,11 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   const deleteCustomer = async (id: string) => {
     try {
       await api.removeCustomer(id);
-      setCustomers(prev => prev.filter(c => c.id !== id));
+      setCustomers(prev => {
+        const next = prev.filter(c => c.id !== id);
+        writeCachedCustomers(next);
+        return next;
+      });
     } catch (error: any) {
       alert(error.message || '删除客户失败');
       throw error;
