@@ -4,6 +4,7 @@ import * as api from '../lib/api';
 import { useUser } from './UserContext';
 
 const CUSTOMER_CACHE_KEY = 'yichen_customers_cache';
+const DATA_URL_PREFIX = 'data:';
 
 function readCachedCustomers(): Customer[] {
   try {
@@ -32,7 +33,7 @@ interface CustomerContextType {
   deleteCustomer: (id: string) => Promise<void>;
 }
 
-const DATA_URL_PREFIX = 'data:';
+const CustomerContext = createContext<CustomerContextType | undefined>(undefined);
 
 function hasPendingImages(customer: Omit<Customer, 'id'>) {
   return Boolean(
@@ -59,68 +60,59 @@ function stripInlineImages(customer: Omit<Customer, 'id'>): Omit<Customer, 'id'>
   };
 }
 
-const CustomerContext = createContext<CustomerContextType | undefined>(undefined);
-
 export function CustomerProvider({ children }: { children: ReactNode }) {
   const [customers, setCustomers] = useState<Customer[]>(readCachedCustomers);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const { isAuthenticated } = useUser();
 
   useEffect(() => {
-    if (!customers.length) return;
     writeCachedCustomers(customers);
   }, [customers]);
 
   useEffect(() => {
-    const fetchCustomers = async () => {
-      if (!isAuthenticated) {
-        setCustomers([]);
-        writeCachedCustomers([]);
-        setLoading(false);
-        return;
-      }
+    if (!isAuthenticated) {
+      setCustomers([]);
+      writeCachedCustomers([]);
+      setLoading(false);
+      return;
+    }
 
+    let cancelled = false;
+
+    const fetchCustomers = async () => {
       try {
-        setLoading(customers.length === 0);
         const res = await api.getCustomers();
-        const nextCustomers = res.customers || [];
-        setCustomers(nextCustomers);
+        if (cancelled) return;
+        setCustomers(res.customers || []);
       } catch (error) {
         console.error('Error fetching customers:', error);
-        setCustomers(prev => prev);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchCustomers();
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated]);
 
   const addCustomer = async (data: Omit<Customer, 'id'>) => {
     try {
-      const basePayload = hasPendingImages(data) ? stripInlineImages(data) : data;
+      const pendingUpload = hasPendingImages(data);
+      const basePayload = pendingUpload ? stripInlineImages(data) : data;
       const res = await api.createCustomer(basePayload);
-      setCustomers(prev => {
-        const next = [{ ...res.customer, syncStatus: hasPendingImages(data) ? 'uploading' : 'idle' }, ...prev];
-        writeCachedCustomers(next);
-        return next;
-      });
+      const immediateCustomer = { ...res.customer, syncStatus: pendingUpload ? 'uploading' : 'idle' };
 
-      if (hasPendingImages(data)) {
+      setCustomers(prev => [immediateCustomer, ...prev]);
+
+      if (pendingUpload) {
         api.updateCustomer(res.customer.id, data)
           .then((updateRes) => {
-            setCustomers(prev => {
-              const next = prev.map(c => (c.id === res.customer.id ? { ...updateRes.customer, syncStatus: 'idle' } : c));
-              writeCachedCustomers(next);
-              return next;
-            });
+            setCustomers(prev => prev.map(c => (c.id === res.customer.id ? { ...updateRes.customer, syncStatus: 'idle' } : c)));
           })
           .catch(() => {
-            setCustomers(prev => {
-              const next = prev.map(c => (c.id === res.customer.id ? { ...c, syncStatus: 'failed' } : c));
-              writeCachedCustomers(next);
-              return next;
-            });
+            setCustomers(prev => prev.map(c => (c.id === res.customer.id ? { ...c, syncStatus: 'failed' } : c)));
           });
       }
     } catch (error: any) {
@@ -131,12 +123,9 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
 
   const updateCustomer = async (id: string, data: Partial<Customer>) => {
     try {
+      setCustomers(prev => prev.map(c => (c.id === id ? { ...c, ...data } : c)));
       const res = await api.updateCustomer(id, data);
-      setCustomers(prev => {
-        const next = prev.map(c => (c.id === id ? res.customer : c));
-        writeCachedCustomers(next);
-        return next;
-      });
+      setCustomers(prev => prev.map(c => (c.id === id ? res.customer : c)));
     } catch (error: any) {
       alert(error.message || '更新客户失败');
       throw error;
@@ -162,14 +151,12 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteCustomer = async (id: string) => {
+    const previous = customers;
     try {
+      setCustomers(prev => prev.filter(c => c.id !== id));
       await api.removeCustomer(id);
-      setCustomers(prev => {
-        const next = prev.filter(c => c.id !== id);
-        writeCachedCustomers(next);
-        return next;
-      });
     } catch (error: any) {
+      setCustomers(previous);
       alert(error.message || '删除客户失败');
       throw error;
     }
