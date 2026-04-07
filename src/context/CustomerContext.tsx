@@ -32,6 +32,33 @@ interface CustomerContextType {
   deleteCustomer: (id: string) => Promise<void>;
 }
 
+const DATA_URL_PREFIX = 'data:';
+
+function hasPendingImages(customer: Omit<Customer, 'id'>) {
+  return Boolean(
+    customer.avatar?.startsWith(DATA_URL_PREFIX) ||
+    customer.ziWeiChart?.startsWith(DATA_URL_PREFIX) ||
+    customer.fengShuiImages?.some((img) => img.startsWith(DATA_URL_PREFIX)) ||
+    customer.familyMembers?.some((member) =>
+      member.avatar?.startsWith(DATA_URL_PREFIX) || member.ziWeiChart?.startsWith(DATA_URL_PREFIX)
+    )
+  );
+}
+
+function stripInlineImages(customer: Omit<Customer, 'id'>): Omit<Customer, 'id'> {
+  return {
+    ...customer,
+    avatar: customer.avatar?.startsWith(DATA_URL_PREFIX) ? '' : customer.avatar,
+    ziWeiChart: customer.ziWeiChart?.startsWith(DATA_URL_PREFIX) ? '' : customer.ziWeiChart,
+    fengShuiImages: (customer.fengShuiImages || []).filter((img) => !img.startsWith(DATA_URL_PREFIX)),
+    familyMembers: (customer.familyMembers || []).map((member) => ({
+      ...member,
+      avatar: member.avatar?.startsWith(DATA_URL_PREFIX) ? '' : member.avatar,
+      ziWeiChart: member.ziWeiChart?.startsWith(DATA_URL_PREFIX) ? '' : member.ziWeiChart,
+    })),
+  };
+}
+
 const CustomerContext = createContext<CustomerContextType | undefined>(undefined);
 
 export function CustomerProvider({ children }: { children: ReactNode }) {
@@ -67,12 +94,31 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
 
   const addCustomer = async (data: Omit<Customer, 'id'>) => {
     try {
-      const res = await api.createCustomer(data);
+      const basePayload = hasPendingImages(data) ? stripInlineImages(data) : data;
+      const res = await api.createCustomer(basePayload);
       setCustomers(prev => {
-        const next = [res.customer, ...prev];
+        const next = [{ ...res.customer, syncStatus: hasPendingImages(data) ? 'uploading' : 'idle' }, ...prev];
         writeCachedCustomers(next);
         return next;
       });
+
+      if (hasPendingImages(data)) {
+        api.updateCustomer(res.customer.id, data)
+          .then((updateRes) => {
+            setCustomers(prev => {
+              const next = prev.map(c => (c.id === res.customer.id ? { ...updateRes.customer, syncStatus: 'idle' } : c));
+              writeCachedCustomers(next);
+              return next;
+            });
+          })
+          .catch(() => {
+            setCustomers(prev => {
+              const next = prev.map(c => (c.id === res.customer.id ? { ...c, syncStatus: 'failed' } : c));
+              writeCachedCustomers(next);
+              return next;
+            });
+          });
+      }
     } catch (error: any) {
       alert(error.message || '添加客户失败');
       throw error;

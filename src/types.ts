@@ -35,6 +35,7 @@ export interface Customer {
   followUpRecords: FollowUpRecord[];
   familyMembers?: FamilyMember[];
   archived?: boolean;
+  syncStatus?: 'idle' | 'uploading' | 'failed';
 }
 
 export interface Activity {

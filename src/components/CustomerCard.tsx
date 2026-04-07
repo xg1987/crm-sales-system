@@ -83,6 +83,16 @@ export default function CustomerCard({
                     {customer.familyMembers.length}
                   </div>
                 )}
+                {customer.syncStatus === 'uploading' && (
+                  <div className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
+                    图片上传中
+                  </div>
+                )}
+                {customer.syncStatus === 'failed' && (
+                  <div className="px-2 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold">
+                    图片上传失败
+                  </div>
+                )}
               </div>
             </div>
           </div>
