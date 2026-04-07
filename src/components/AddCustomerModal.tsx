@@ -29,6 +29,7 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'family'>('basic');
+  const [submitting, setSubmitting] = useState(false);
 
   // Family Member Form State
   const [isEditingFamily, setIsEditingFamily] = useState(false);
@@ -85,6 +86,7 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
     setNewNote('');
     setActiveTab('basic');
     setIsEditingFamily(false);
+    setSubmitting(false);
   }, [initialData, isOpen]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'chart' | 'fAvatar' | 'fChart' | 'fengShui') => {
@@ -196,6 +198,7 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     
     // Auto-save if editing family member
     let currentFamilyMembers = [...familyMembers];
@@ -228,6 +231,7 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
     }
 
     try {
+      setSubmitting(true);
       await onAdd({
         name,
         phone,
@@ -246,6 +250,8 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
       onClose();
     } catch (error) {
       // Error is handled in context
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -897,15 +903,17 @@ export default function AddCustomerModal({ isOpen, onClose, onAdd, initialData }
                   <button
                     type="button"
                     onClick={onClose}
-                    className="flex-1 py-4 px-6 border-2 border-outline-variant text-secondary font-headline font-bold rounded-lg hover:bg-surface-container-high transition-all"
+                    disabled={submitting}
+                    className="flex-1 py-4 px-6 border-2 border-outline-variant text-secondary font-headline font-bold rounded-lg hover:bg-surface-container-high transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     取 消
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-4 px-6 bg-primary text-on-primary font-headline font-bold rounded-lg shadow-xl shadow-primary/20 hover:bg-primary-container transition-all"
+                    disabled={submitting}
+                    className="flex-1 py-4 px-6 bg-primary text-on-primary font-headline font-bold rounded-lg shadow-xl shadow-primary/20 hover:bg-primary-container transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {initialData ? '确 认 修 改' : '确 认 新 增'}
+                    {submitting ? '提 交 中...' : initialData ? '确 认 修 改' : '确 认 新 增'}
                   </button>
                 </div>
               </form>

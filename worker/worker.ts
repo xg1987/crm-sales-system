@@ -30,7 +30,7 @@ type UserRow = {
 };
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200&h=200';
-const R2_PUBLIC_BASE = 'https://pub-c9d0a98830b44a8f8a0a4be4533a9348.r2.dev';
+const R2_PUBLIC_BASE = 'https://pub-f5f6d19c6bd44c6e80b2636b0ffcd929.r2.dev';
 
 function json(data: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(data), {
@@ -83,6 +83,15 @@ async function normalizeAssetList(values: string[] | undefined, folder: string, 
     result.push(await normalizeAssetField(value, folder, env));
   }
   return result;
+}
+
+function safeParseJsonArray(value: string | null | undefined) {
+  if (!value) return [];
+  try {
+    return JSON.parse(value);
+  } catch {
+    return [];
+  }
 }
 
 async function parseBody(request: Request) {
@@ -257,7 +266,10 @@ export default {
 
     if (url.pathname === '/api/customers' && request.method === 'GET') {
       const rows = await env.DB.prepare(
-        `SELECT * FROM customers WHERE user_id = ? ORDER BY updated_at DESC, created_at DESC`
+        `SELECT id, name, phone, wechat_id, city, birth_date, birth_time, birth_type,
+                avatar, ziwei_chart, fengshui_images_json, status, level, next_follow_up_date,
+                follow_up_records_json, family_members_json, archived, updated_at, created_at
+         FROM customers WHERE user_id = ? ORDER BY updated_at DESC, created_at DESC LIMIT 200`
       ).bind(user.id).all();
 
       const customers = (rows.results || []).map((row: any) => ({
@@ -269,12 +281,12 @@ export default {
         birthInfo: row.birth_date ? { date: row.birth_date, time: row.birth_time || '', type: row.birth_type || 'solar' } : undefined,
         avatar: row.avatar || DEFAULT_AVATAR,
         ziWeiChart: row.ziwei_chart || '',
-        fengShuiImages: row.fengshui_images_json ? JSON.parse(row.fengshui_images_json) : [],
+        fengShuiImages: safeParseJsonArray(row.fengshui_images_json),
         status: row.status,
         level: row.level,
         nextFollowUpDate: row.next_follow_up_date || undefined,
-        followUpRecords: row.follow_up_records_json ? JSON.parse(row.follow_up_records_json) : [],
-        familyMembers: row.family_members_json ? JSON.parse(row.family_members_json) : [],
+        followUpRecords: safeParseJsonArray(row.follow_up_records_json),
+        familyMembers: safeParseJsonArray(row.family_members_json),
         archived: !!row.archived,
       }));
 
